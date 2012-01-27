@@ -1,0 +1,4 @@
+changelog		sample changelog (required)
+control			sample control file (required)
+postinst		sample control file (optional)
+rules			configuration-free, reusable nomacera Makefile

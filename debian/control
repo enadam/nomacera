@@ -1,0 +1,8 @@
+Source: hihi
+Section: devel
+Standards-Version: 3.9.1
+
+Package: hihi
+Suggests: libfun
+Architecture: any
+Description: hihihi hahaha hehehe

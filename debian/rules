@@ -1,0 +1,84 @@
+#!/usr/bin/make -f
+#
+# nomacera debian/rules -- configuration-free .deb builder
+#
+# Everything is derived from the control file and the changelog.
+# Does not need (fake)root to build the package.
+# Adds digsigsums for aegis if possible.
+# Supports additional $(CONTROL_FILES).
+#
+
+# Additional control files to package
+CONTROL_FILES := $(wildcard postinst)
+
+WORKDIR		:= out
+INSTALL_DIR	:= data
+
+ifneq ($(wildcard debian),)
+SOURCE_DIR	:= .
+DEBIAN_DIR	:= debian
+WORKDIR		:= $(DEBIAN_DIR)/$(WORKDIR)
+else
+ifneq ($(wildcard rules),)
+SOURCE_DIR	:= ..
+DEBIAN_DIR	:= .
+else
+SOURCE_DIR	:= ../..
+DEBIAN_DIR	:= ..
+WORKDIR		:= $(DEBIAN_DIR)/$(WORKDIR)
+endif
+endif
+
+# Get the $(PACKAGE_NAME) from debian/control,
+# $(PACKAGE_VERSION) and $(MAINTAINER) from debian/changelog.
+PACKAGE_NAME	= $(shell sed -ne 's/^Package: //p' < $(DEBIAN_DIR)/control)
+MAKE_AZANYAD	= s/).*$$//; s/^.*(//; q
+PACKAGE_VERSION	= $(shell sed -e '$(MAKE_AZANYAD)' < $(DEBIAN_DIR)/changelog)
+MAINTAINER	= $(shell sed -ne '/^ -- /{s/^ -- \(.*\)  .*/\1/p;q}' < $(DEBIAN_DIR)/changelog)
+ARCHITECTURE	= $(shell dpkg-architecture -qDEB_HOST_ARCH 2>/dev/null || dpkg --print-architecture 2>/dev/null || uname -m)
+PACKAGE_FNAME	= $(PACKAGE_NAME)_$(PACKAGE_VERSION)_$(ARCHITECTURE).deb
+
+MAKE_SOURCE	:= make$(if $(wildcard rules), -C $(SOURCE_DIR))
+ROOTME		:= --owner root --group root
+
+# Commands
+failure:
+
+build:
+	$(MAKE_SOURCE);
+
+buildpkg: $(if $(wildcard rules),marha)
+	tar czvf data.tar.gz $(ROOTME) -C $(INSTALL_DIR) . > data.list;
+	(files=`cat data.list`; cd $(INSTALL_DIR); refhashmake -c -a -o com.nokia.maemo -r -f $$files 2>/dev/null || true) > digsigsums;
+	echo 2.0 > debian-binary;
+	sed -ne '/^Package: /,$${/^Architecture: *any$$/s/any/$(ARCHITECTURE)/; p}' < $(DEBIAN_DIR)/control > control;
+	echo "Version: $(PACKAGE_VERSION)" >> control;
+	echo "Maintainer: $(MAINTAINER)" >> control;
+	tar cf control.tar $(ROOTME) control;
+ifneq ($(CONTROL_FILES),)
+	tar rf control.tar $(ROOTME) -C $(DEBIAN_DIR) $(CONTROL_FILES);
+	(cd $(DEBIAN_DIR); refhashmake -c -a -o com.nokia.maemo -p var/lib/dpkg/info/$(PACKAGE_NAME). -r -f $(CONTROL_FILES) 2>/dev/null || true) >> digsigsums
+endif
+	[ ! -s digsigsums ] || tar rf control.tar $(ROOTME) digsigsums;
+	gzip control.tar;
+	ar rc $(SOURCE_DIR)/../$(PACKAGE_FNAME) \
+		debian-binary control.tar.gz data.tar.gz;
+
+binary-arch: build
+	rm -rf $(WORKDIR);
+	mkdir $(WORKDIR);
+	$(MAKE_SOURCE) DESTDIR=$(WORKDIR)/$(INSTALL_DIR) install;
+	make -C $(WORKDIR) -f ../rules buildpkg;
+	rm -r $(WORKDIR);
+
+binary-indep:
+
+binary: binary-arch binary-indep
+
+clean:
+	make clean;
+	rm -rf $(WORKDIR);
+
+.PHONY: build failure buildpkg binary binary-arch binary-indep clean
+
+# End of debian/rules

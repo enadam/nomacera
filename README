@@ -1,0 +1,5 @@
+hihi.c			sample binary
+hihi.h			sample header
+libhihi.c		sample library
+Makefile		generic, reusable Makefile
+Makefile.vars		your configuration file for nomacera
